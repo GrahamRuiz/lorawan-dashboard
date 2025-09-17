@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: lorawan
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: appsecret
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [appnet]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://appuser:appsecret@db:5432/lorawan
+      WEBHOOK_SECRET: change-me
+      ADMIN_USER: admin
+      ADMIN_PASS: admin
+      TTN_REGION: nam1
+      TTN_TENANT: ttn
+      TTN_APP_ID: your-app-id
+      TTN_API_KEY: your-tts-api-key
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks: [appnet]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+    environment:
+      # runtime override for dev; in prod keep the build ARG above
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    depends_on: [backend]
+    ports:
+      - "3000:3000"
+    networks: [appnet]
+
+  # Optional DB GUI (DEV only): http://localhost:8080
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on: [db]
+    networks: [appnet]
+
+volumes:
+  dbdata:
+
+networks:
+  appnet:
