@@ -9,13 +9,27 @@ services:
       POSTGRES_PASSWORD: appsecret
     volumes:
       - dbdata:/var/lib/postgresql/data
-      - ./backend/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U appuser -d lorawan"]
       interval: 10s
       timeout: 5s
       retries: 10
     networks: [appnet]
+
+  # Aplica el schema después de que la DB esté saludable (evita choques si ya hay datos)
+  initdb:
+    image: postgres:16
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: appsecret
+    volumes:
+      - ./backend/schema.sql:/schema.sql:ro
+    command: >
+      bash -lc "psql -h db -U appuser -d lorawan -v ON_ERROR_STOP=1 -f /schema.sql"
+    networks: [appnet]
+    restart: "no"
 
   backend:
     build:
@@ -33,8 +47,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     networks: [appnet]
 
   frontend:
@@ -42,25 +56,33 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://backend:8000
+        NEXT_PUBLIC_API_URL: http://backend:8000   # el frontend llama interno al backend
     environment:
-      # runtime override for dev; in prod keep the build ARG above
-      NEXT_PUBLIC_API_URL: http://backend:8000
-    depends_on: [backend]
-    ports:
-      - "3000:3000"
+      NODE_ENV: production
+    depends_on:
+      - backend
+    expose:
+      - "3000"
     networks: [appnet]
 
-  # Optional DB GUI (DEV only): http://localhost:8080
-  adminer:
-    image: adminer
+  # Nginx Proxy Manager (panel web en :81; expone 80/443)
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    restart: always
     ports:
-      - "8080:8080"
-    depends_on: [db]
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
     networks: [appnet]
 
 volumes:
   dbdata:
+  npm_data:
+  npm_letsencrypt:
 
 networks:
   appnet:
+    driver: bridge
