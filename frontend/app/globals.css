@@ -3,4 +3,7 @@
 .card{background:white;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.08);padding:16px;margin:16px}
 .btn{background:#0284c7;color:white;padding:8px 14px;border:0;border-radius:10px;cursor:pointer}
 .input{padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px}
-.row{display:flex;gap:16px;flex-wrap:wrap}
+.row{display:flex;gap:16px;flex-wrap:wrap;/* ==== FIX scroll infinito del chart ==== */
+.chart-wrap{height:320px; width:100%;}
+.chart-wrap canvas{display:block; height:100% !important; width:100% !important;}
+/* ==== FIX scroll infinito del chart ==== */}
