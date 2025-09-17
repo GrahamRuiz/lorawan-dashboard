@@ -1,41 +1,26 @@
-# ===========================
-# Build stage
-# ===========================
-FROM node:20-alpine AS build
+# frontend/Dockerfile — Alpine with toolchain
 
-# Set working directory
+# ---------- Build ----------
+FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy dependency manifests
+# toolchain for native deps (e.g., sharp)
+RUN apk add --no-cache python3 make g++ libc6-compat git
+
 COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-# Install dependencies
-RUN npm ci
-
-# Build-time API URL (passed from docker-compose.yml)
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-# Copy rest of the frontend source
 COPY . .
-
-# Build the Next.js app
 RUN npm run build
 
-
-# ===========================
-# Run stage
-# ===========================
+# ---------- Run ----------
 FROM node:20-alpine
-
 WORKDIR /app
 ENV NODE_ENV=production
-
-# Copy everything from build stage
-COPY --from=build /app . 
-
-# Expose port
+RUN apk add --no-cache libc6-compat
+COPY --from=build /app ./
 EXPOSE 3000
-
-# Run Next.js in production mode
 CMD ["npm", "run", "start"]
